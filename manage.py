@@ -1,268 +1,97 @@
-from flask import Flask, request, abort
-import subprocess, os, socket, pymysql, shutil, time, psutil, json
-from setting_blk import block1, block2, block3, block4, block5
-from flask_basicauth import BasicAuth
-from pymysql.err import IntegrityError
+import os
 
-db_server = 'localhost'
-db_uname = 'admin'
-db_pass = 'password'
-db_name = 'db'
+from app.api.helpers.db import save_to_db
+from app.models.event import Event, get_new_event_identifier
+from app import manager
+from app import current_app as app
+from app.models import db
+from app.models.speaker import Speaker
+from populate_db import populate
+from flask_migrate import stamp
+from sqlalchemy.engine import reflection
 
-user = "admin"
-passwd = "password"
-
-app = Flask(__name__)
-app.config['BASIC_AUTH_USERNAME'] = user
-app.config['BASIC_AUTH_PASSWORD'] = passwd
-basic_auth = BasicAuth(app)
+from tests.all.integration.auth_helper import create_super_admin
 
 
-def db_connect():
-	try:
-		return pymysql.connect(db_server, db_uname, db_pass, db_name)
-	except:
-		print "Database connection failed"
-		return False
+@manager.command
+def list_routes():
+    import urllib
+
+    output = []
+    for rule in app.url_map.iter_rules():
+        methods = ','.join(rule.methods)
+        line = urllib.unquote("{:50s} {:20s} {}".format(
+            rule.endpoint, methods, rule))
+        output.append(line)
+
+    for line in sorted(output):
+        print(line)
 
 
-def get_port(username):
-	db = db_connect()
-	cursor = db.cursor()
-	if cursor.execute("SELECT port FROM users WHERE username = '%s'" %username):
-		port = cursor.fetchall()[0][0]
-		cursor.close()
-		db.close()
-		return port
-	return False
+@manager.command
+def add_event_identifier():
+    events = Event.query.all()
+    for event in events:
+        event.identifier = get_new_event_identifier()
+        save_to_db(event)
 
 
-@app.route('/', methods = ['POST', 'DELETE', 'PUT'])
-@basic_auth.required
-def user():
-	data = request.get_json(force=True)
-	if not data.has_key("username"):
-		return json.dumps({"code":400, "message":"Username required", "status":0})
-	username = data["username"].lower()
-	#if not username.isalnum():
-	#	return json.dumps({"code":400, "message":"Invalid Username", "status":0})
-	if not set(data.keys()).issubset(["username", "password"]):
-		return json.dumps({"code":400, "message":"Invalid arguments", "status":0})
-	path = "/root/api/instances/"
-	if request.method == "POST" or request.method == "PUT":
-		if not data.has_key("password") or data["password"] == "":
-			return json.dumps({"code":400, "message":"Password required", "status":0})
-		password = data["password"]
-	if request.method == "POST":
-		sock = socket.socket()
-		sock.bind(('localhost', 0))
-		port = str(sock.getsockname()[1])
-		db = db_connect()
-		if not db:
-			return json.dumps({"code":400, "message":"Database connection failed", "status":0})	
-		cursor = db.cursor()
-		if cursor.execute("select port from users"):
-			result = cursor.fetchall()
-			while (port, ) in result:
-				sock.bind(('localhost', 0))
-                		port = str(sock.getsockname()[1])
-		sock.close()
-		try:
-			cursor.execute("insert into users (username, password, port) values ('%s', '%s', '%s')" %(username, password, port))
-		except IntegrityError:
-			return json.dumps({"code":409, "message":"Username already exists", "status":0})
-		except:
-			return json.dumps({"code":500, "message":"Unable to insert into database", "status":0})
-		db.commit()
-		db.close()
-
-		try:
-			os.makedirs(path + username + "/modules")
-			subprocess.check_output(["cp", path+"settings.js", path+username+"/"])
-		except Exception as e:
-			print str(e)
-		os.chdir(path + username)
-		settings_js = open("settings.js", "w")
-		flow_block = "flowFile: 'flows_%s.json'," %username
-		hroot_block = "httpRoot: '/" + username + "',"
-		auth_block = '''adminAuth: {
-		sessionExpiryTime: 3600,
-        type: "credentials",
-        users: [{
-            	username: "%s",
-            	password: "%s",
-            	permissions: "*"
-        		}]
-    	},''' %(username, password)
-		httpAuth_block = "httpNodeAuth:{user:'%s',pass:'%s'}," %(username, password)
-		w_content = block1 + flow_block + block2 + hroot_block + block3 + auth_block + block4 + httpAuth_block + block5
-		settings_js.write(w_content)
-		settings_js.close()
-		nginx_file = "nginx.d/" + username + ".conf"
-		os.chdir(path)
-		nginx_h = open(nginx_file, "w")
-		usr_blk = '''location /%s/ {
-			if ($scheme = http) {
-				return 301 https://$server_name$request_uri;
-    		    }
-	    	    proxy_pass http://127.0.0.1:%s/%s/;
-	    	    proxy_set_header Host $host;
-	    	    proxy_set_header X-Real-IP $remote_addr;
-	    	    proxy_http_version 1.1;
-	    	    proxy_set_header Upgrade $http_upgrade;
-	    	    proxy_set_header Connection "upgrade";
-	    	}
-		''' %(username, str(port), username)
-		nginx_h.write(usr_blk)
-		nginx_h.close()
-		os.chdir(path + username + "/")
-		start_instance(username, port)
-#		try:
-#			subprocess.Popen(["nohup", "node-red", "-s", path + username + "/settings.js", "-u", path + username + "/", "-p", port], preexec_fn=os.setpgrp, close_fds=True)
-#		except Exception as e:
-#			return "Problem starting node-red"
-		try:		
-			subprocess.check_output(["systemctl","reload", "nginx"])
-		except Exception as e:
-			return "Nginx reload failed" + "\n" + str(e)	
-		return json.dumps({"message":"User created successfully.", "code":200, "status":0}), 200
-	elif request.method == 'DELETE':
-		data = request.get_json(force=True)
-		try:
-			db = db_connect()
-		except:
-			return "Database connection failed"
-		cursor = db.cursor()
-		if cursor.execute("DELETE FROM users WHERE username = '%s'" %username):
-			db.commit()
-			db.close()
-		else:
-			db.close()
-			return json.dumps({"code":400, "message":"Username does not exist", "status":1}), 200
-		try:
-			shutil.rmtree(path + username)
-		except OSError as e:
-			print "\n\nPath does not exist\n\n"
-		if stop_instance() == True:
-			print "\n\nInstance not Running\n\n" 
-		try:
-			os.remove(path + "nginx.d/" + username + ".conf")
-		except:
-			print "\n\nNo such file found\n\n"
-		subprocess.check_output(["systemctl", "reload", "nginx"])					
-		return json.dumps({"message":"User deleted", "status":0, "code":200}), 200
-	elif request.method == 'PUT':
-		db = db_connect()
-		cursor = db.cursor()
-		if cursor.execute("UPDATE users SET password = '%s' WHERE username = '%s'" %(password, username)):
-			port = get_port(username)
-			db.commit()
-			db.close()
-		else:
-			return json.dumps({"code":200, "status":1, "message":"User not found"}), 200
-
-		os.chdir(path + username)
-		settings_js = open("settings.js", "w")
-		flow_block = "flowFile: 'flows_%s.json'," %username
-		hroot_block = "httpRoot: '/" + username + "',"
-		auth_block = '''adminAuth: {
-		sessionExpiryTime: 3600,
-        type: "credentials",
-        users: [{
-            	username: "%s",
-            	password: "%s",
-            	permissions: "*"
-        		}]
-    	},''' %(username, password)
-		httpAuth_block = "httpNodeAuth:{user:'%s',pass:'%s'}," %(username, password)
-		w_content = block1 + flow_block + block2 + hroot_block + block3 + auth_block + block4 + httpAuth_block + block5
-		settings_js.write(w_content)
-		settings_js.close()
-		stop_instance(port)
-		start_instance(username, port)
-		return json.dumps({"message":"Password updated successfully", "status":1, "code":200})
+@manager.option('-e', '--event', help='Event ID. Eg. 1')
+def fix_speaker_images(event):
+    from app.helpers.sessions_speakers.speakers import speaker_image_sizes
+    from app.helpers.sessions_speakers.speakers import save_resized_photo
+    import urllib
+    from app.helpers.storage import generate_hash
+    event_id = int(event)
+    image_sizes = speaker_image_sizes()
+    speakers = Speaker.query.filter_by(event_id=event_id).all()
+    for speaker in speakers:
+        if speaker.photo and speaker.photo.strip() != '':
+            file_relative_path = 'static/media/temp/' + generate_hash(str(speaker.id)) + '.jpg'
+            file_path = app.config['BASE_DIR'] + '/' + file_relative_path
+            urllib.urlretrieve(speaker.photo, file_path)
+            speaker.small = save_resized_photo(file_path, event_id, speaker.id, 'small', image_sizes)
+            speaker.thumbnail = save_resized_photo(file_path, event_id, speaker.id, 'thumbnail', image_sizes)
+            speaker.icon = save_resized_photo(file_path, event_id, speaker.id, 'icon', image_sizes)
+            db.session.add(speaker)
+            os.remove(file_path)
+            print("Downloaded " + speaker.photo + " into " + file_relative_path)
+        print("Processed - " + str(speaker.id))
+    db.session.commit()
 
 
-@basic_auth.required
-@app.route('/list', methods = ['GET'])
-def list_users():
-	db = db_connect()
-	if not db:
-		return json.dumps({"status":1, "message":"Database connection failed", "code":500})
-        cursor = db.cursor()
-        if cursor.execute("SELECT username, port FROM users"):
-        	res_data = cursor.fetchall()
-		result = {}
-               	for row in res_data:
-			result[row[0]] = row[1]
-                db.close()
-		return json.dumps({"status":0, "message":"SUCCESS","data":result, "code":200}), 200
-	else:
-		return json.dumps({"message":"\nUnable to retrieve data\n", "code":200, "status":1}), 200
+@manager.option('-c', '--credentials', help='Super admin credentials. Eg. username:password')
+def initialize_db(credentials):
+    with app.app_context():
+        populate_data = True
+        inspector = reflection.Inspector.from_engine(db.engine)
+        table_name = 'events'
+        table_names = inspector.get_table_names()
+        print("[LOG] Existing tables:")
+        print("[LOG] " + ','.join(table_names))
+        if table_name not in table_names:
+            print("[LOG] Table not found. Attempting creation")
+            try:
+                db.create_all()
+                stamp()
+            except Exception:
+                populate_data = False
+                print("[LOG] Could not create tables. Either database does not exist or tables already created")
+            if populate_data:
+                credentials = credentials.split(":")
+                admin_email = os.environ.get('SUPER_ADMIN_EMAIL', credentials[0])
+                admin_password = os.environ.get('SUPER_ADMIN_PASSWORD', credentials[1])
+                create_super_admin(admin_email, admin_password)
+                populate()
+        else:
+            print("[LOG] Tables already exist. Skipping data population & creation.")
 
 
-
-@basic_auth.required
-@app.route('/instance', methods = ['POST', 'GET'])
-def instance_actions():
-	path = "/root/api/instances/"
-	data = request.get_json(force=True)
-	if "username" not in data.keys():
-		return json.dumps({"status":1, "message":"Username required", "code":"400"}) + "\n", 200
-	username = data["username"].lower()
-	if username == "":
-		return json.dumps({"status":1, "message":"Username required", "code":"400"}) + "\n", 200
-	action = data.setdefault("action", "status")
-	if action not in ["start", "stop", "restart", "status"]:
-		return json.dumps({"status":1, "message":"Not a valid action", "code":200}), 200
-	port = str(get_port(username))
-	if not port:
-		return json.dumps({"message":"User not found", "status":1, "code":200}), 200
-	if action == "status":
-		for rec in psutil.net_connections():
-			if str(rec.laddr[1]) == port:
-				proc = psutil.Process(rec.pid)
-				if proc.name() == "node-red":
-					return json.dumps({"message":"Instance is running", "status":0, "code":200}), 200
-				else:
-					return json.dumps({"message":"Instance is not running, PORT occupied by another service: %s" %proc.name(), "status":0, "code":200}) + "\n", 200
-		return json.dumps({"message":"Instance is not running", "status":0, "code":200}) + "\n", 200
-	elif action == "start":
-		if not start_instance(username, port):
-			return json.dumps({"message":"Unable to start instance", "status":1, "code":200}), 200
-	elif action == "stop":
-		if not stop_instance(port):
-			return json.dumps({"message":"Unable to stop instance", "status":1, "code":200}), 200
-	elif action == "restart":
-		if not stop_instance(port):
-			return json.dumps({"message":"Unable to stop instance", "status":1, "code":200}), 200
-		elif not start_instance(username, port):
-			return json.dumps({"message":"Unable to stop instance", "status":1, "code":200}), 200
-	return json.dumps({"message":"Instance %s successful" %action, "status":0, "code":200}), 200
-	
-
-
-def start_instance(username, port):
-	path = "/root/api/instances/"
-	os.chdir(path + username + "/")
-	try:
-		subprocess.Popen(["nohup", "node-red", "-s", path + username + "/settings.js", "-u", path + username + "/", "-p", str(port)], preexec_fn=os.setpgrp, close_fds=True)
-		return True
-	except:
-		return False
-
-
-def stop_instance(port):	
-	for rec in psutil.net_connections():
-		if str(rec.laddr[1]) == str(port):
-			try:
-				proc = psutil.Process(rec.pid)
-				proc.kill()
-				return True
-			except:
-				return False
-	return False
+@manager.command
+def prepare_kubernetes_db(credentials='open_event_test_user@fossasia.org:fossasia'):
+    with app.app_context():
+        initialize_db(credentials)
 
 
 if __name__ == "__main__":
-	app.run(host = '0.0.0.0', port = 5000, debug=True)
+    manager.run()
