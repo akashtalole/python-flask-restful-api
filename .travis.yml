@@ -32,7 +32,7 @@ before_script:
   - export TEST_DATABASE_URL=postgresql://postgres@localhost:5432/test
   - bash scripts/test_multiple_heads.sh
   - aglio --input docs/api/api_blueprint_source.apib --compile --output docs/api/api_blueprint.apib
-  - dredd
+  #- dredd
   
 script:
   - nosetests tests/all -v --with-coverage
