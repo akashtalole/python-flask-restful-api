@@ -35,7 +35,7 @@ forex-python~=1.5
 pycryptodome~=3.9.0
 oauth2==1.9.0.post1
 qrcode~=6.1
-python-magic~=0.4
+python-magic==0.4.15
 python-dotenv~=0.10.3
 python-geoip~=1.2
 marrow.mailer~=4.0
