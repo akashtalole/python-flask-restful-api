@@ -33,7 +33,7 @@ xhtml2pdf==0.2.3
 flask-caching==1.7.2
 forex-python~=1.5
 pycryptodome~=3.9.0
-oauth2~=1.9
+oauth2==1.9.0.post1
 qrcode~=6.1
 python-magic~=0.4
 python-dotenv~=0.10.3
