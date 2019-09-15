@@ -44,7 +44,7 @@ python-pentabarf-xml==0.19  # leave versions untouched.
 python-geoip-geolite2==2015.0303
 pycountry==19.8.18
 pytz==2019.2
-diff-match-patch
+diff-match-patch==20121119
 blinker~=1.4
 envparse~=0.2
 -e git+https://github.com/fossasia/flask-rest-jsonapi.git@shubhamp-master#egg=flask-rest-jsonapi
