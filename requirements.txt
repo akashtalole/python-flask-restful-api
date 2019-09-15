@@ -41,7 +41,7 @@ python-geoip~=1.2
 marrow.mailer==4.0.2
 flask-cors~=3.0.8
 python-pentabarf-xml==0.19  # leave versions untouched.
-python-geoip-geolite2
+python-geoip-geolite2==2015.0303
 pycountry
 pytz
 diff-match-patch
