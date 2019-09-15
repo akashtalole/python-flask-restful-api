@@ -20,7 +20,7 @@ celery~=4.3
 redis==3.3.8
 apscheduler~=3.6.1
 pillow~=6.1.0
-amqp~=2.5
+amqp==2.5.1
 gunicorn~=19.9
 boto~=2.49
 geoip2~=2.9.0
