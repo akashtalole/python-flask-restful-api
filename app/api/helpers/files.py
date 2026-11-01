@@ -14,8 +14,20 @@ from sqlalchemy.orm.exc import NoResultFound
 from xhtml2pdf import pisa
 
 from app import get_settings
+from app.api.helpers.utilities import validate_remote_url
 from app.api.helpers.storage import UploadedFile, upload, generate_hash, UPLOAD_PATHS
 from app.models.image_size import ImageSizes
+
+
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        validate_remote_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def safe_urlopen(url, timeout=30):
+    validate_remote_url(url)
+    return urllib.request.build_opener(_SafeRedirectHandler).open(url, timeout=timeout)
 
 
 def get_file_name():
@@ -77,7 +89,8 @@ def create_save_resized_image(image_file, basewidth=None, maintain_aspect=None, 
     if not image_file:
         return None
     filename = '{filename}.{ext}'.format(filename=get_file_name(), ext=ext)
-    data = urllib.request.urlopen(image_file).read()
+    with safe_urlopen(image_file) as img_data:
+        data = img_data.read()
     image_file = io.BytesIO(data)
     try:
         im = Image.open(image_file)
@@ -202,7 +215,7 @@ def create_system_image(image_file=None, upload_path=None, unique_identifier=Non
     # Get an unique identifier from uuid if not provided
     filename = '{filename}.{ext}'.format(filename=get_file_name(), ext=ext)
     if image_file:
-        with urllib.request.urlopen(image_file) as img_data:
+        with safe_urlopen(image_file) as img_data:
             image_file = io.BytesIO(img_data.read())
     else:
         file_relative_path = 'static/default_system_image.png'

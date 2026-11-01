@@ -1,3 +1,4 @@
+import secrets
 from celery.signals import after_task_publish
 import logging
 import os.path
@@ -94,7 +95,8 @@ def create_app():
         cache.init_app(app, config={'CACHE_TYPE': 'null'})
 
     stripe.api_key = 'SomeStripeKey'
-    app.secret_key = 'super secret key'
+    # Never ship a known default: use SECRET_KEY from the environment, else a random per-process key
+    app.secret_key = os.getenv('SECRET_KEY') or secrets.token_urlsafe(32)
     app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
     app.config['FILE_SYSTEM_STORAGE_FILE_VIEW'] = 'static'
 

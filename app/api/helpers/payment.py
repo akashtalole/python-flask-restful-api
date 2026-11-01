@@ -86,7 +86,7 @@ class StripePaymentsManager(object):
             'grant_type': 'authorization_code'
         }
 
-        response = requests.post('https://connect.stripe.com/oauth/token', data=data)
+        response = requests.post('https://connect.stripe.com/oauth/token', data=data, timeout=30)
         return json.loads(response.text)
 
     @staticmethod
@@ -347,5 +347,6 @@ class PaytmPaymentsManager(object):
         paytm_params["body"] = body
         paytm_params["head"] = head
         post_data = json.dumps(paytm_params)
-        response = requests.post(url, data=post_data, headers={"Content-type": "application/json"}).json()
+        response = requests.post(url, data=post_data, headers={"Content-type": "application/json"},
+                                 timeout=30).json()
         return response

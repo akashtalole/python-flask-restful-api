@@ -1,9 +1,14 @@
+import secrets
+
 import stripe
 from flask import current_app
 from sqlalchemy import desc
 
 from app.models.ticket_fee import TicketFees
 from app.models.setting import Setting, Environment
+
+
+LEGACY_DEFAULT_SECRET = 'super secret key'
 
 
 def get_settings(from_db=False):
@@ -15,11 +20,12 @@ def get_settings(from_db=False):
     s = Setting.query.order_by(desc(Setting.id)).first()
     app_environment = current_app.config.get('ENV', 'production')
     if s is None:
-        set_settings(secret='super secret key', app_name='Open Event', app_environment=app_environment)
+        set_settings(secret=secrets.token_urlsafe(32), app_name='Open Event', app_environment=app_environment)
     else:
         current_app.config['custom_settings'] = make_dict(s)
-        if not current_app.config['custom_settings'].get('secret'):
-            set_settings(secret='super secret key', app_name='Open Event', app_environment=app_environment)
+        # Replace missing or legacy hardcoded secrets with a random one
+        if current_app.config['custom_settings'].get('secret') in (None, '', LEGACY_DEFAULT_SECRET):
+            set_settings(secret=secrets.token_urlsafe(32), app_name='Open Event', app_environment=app_environment)
     return current_app.config['custom_settings']
 
 

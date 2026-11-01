@@ -669,7 +669,7 @@ def initiate_transaction(order_identifier):
     else:
         url = "https://securegw.paytm.in/theia/api/v1/initiateTransaction?mid={}&orderId={}".\
             format(get_settings()['paytm_live_merchant'], order_identifier)
-    response = requests.post(url, data=post_data, headers={"Content-type": "application/json"})
+    response = requests.post(url, data=post_data, headers={"Content-type": "application/json"}, timeout=30)
     return response.json()
 
 
@@ -793,5 +793,6 @@ def get_transaction_status(order_identifier):
         url = "https://securegw-stage.paytm.in/order/status"
     else:
         url = "https://securegw.paytm.in/order/status"
-    response = requests.post(url, data=post_data, headers={"Content-type": "application/json"}).json()
+    response = requests.post(url, data=post_data, headers={"Content-type": "application/json"},
+                             timeout=30).json()
     return response
