@@ -2,7 +2,7 @@
 
 import base64
 import string
-import random
+import secrets
 import hashlib
 
 from Crypto.Cipher import AES
@@ -76,7 +76,7 @@ def verify_checksum_by_str(param_str, merchant_key, checksum):
 
 
 def __id_generator__(size=6, chars=string.ascii_uppercase + string.digits + string.ascii_lowercase):
-    return ''.join(random.choice(chars) for _ in range(size))
+    return ''.join(secrets.choice(chars) for _ in range(size))
 
 
 def __get_param_string__(params):

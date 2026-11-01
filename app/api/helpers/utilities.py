@@ -1,6 +1,9 @@
 # PLEASE PUT ALL FUNCTIONS WHICH PERFORM GENERAL FORMATTING ON ANY DATATYPE WITHOUT USING ANY
 # MODULES RELATED TO THE EVENT-SYSTEM i.e FUNCTIONS SPECIFIC TO DB MODELS E.G A FUNCTION JUST FOR ROLE_INVITES
-import random
+import ipaddress
+import secrets
+import socket
+import urllib.parse
 import string
 import sys
 
@@ -35,12 +38,16 @@ def strip_tags(html):
     return bleach.clean(html, tags=[], attributes={}, styles=[], strip=True)
 
 
-def get_serializer(secret_key='secret_key'):
+def get_serializer(secret_key=None):
+    # Signs email-verification / password-reset tokens, so the key must be secret and unique per deployment
+    if secret_key is None:
+        from app.settings import get_settings
+        secret_key = get_settings()['secret']
     return Serializer(secret_key)
 
 
 def str_generator(size=6, chars=string.ascii_uppercase + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
+    return ''.join(secrets.choice(chars) for _ in range(size))
 
 
 # From http://stackoverflow.com/a/3425124
@@ -61,11 +68,32 @@ def represents_int(value):
         return False
 
 
+def validate_remote_url(url):
+    """
+    Only allow http(s) URLs that resolve to public addresses, to prevent
+    local file reads (file://) and SSRF against internal services.
+    """
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+        raise ValueError('Invalid image URL')
+    try:
+        addresses = {info[4][0] for info in socket.getaddrinfo(parsed.hostname, parsed.port)}
+    except socket.gaierror:
+        raise ValueError('Invalid image URL')
+    for address in addresses:
+        if not ipaddress.ip_address(address).is_global:
+            raise ValueError('Invalid image URL')
+
+
 def is_downloadable(url):
     """
     Does the url contain a downloadable resource
     """
-    h = requests.head(url, allow_redirects=True)
+    try:
+        validate_remote_url(url)
+    except ValueError:
+        return False
+    h = requests.head(url, allow_redirects=True, timeout=30)
     header = h.headers
     content_type = header.get('content-type')
     # content_length = header.get('content-length', 1e10)

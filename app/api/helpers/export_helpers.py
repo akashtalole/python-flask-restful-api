@@ -161,7 +161,7 @@ def _download_media(data, srv, dir_path, settings):
         if not is_downloadable(url):
             continue
         try:
-            r = requests.get(url, allow_redirects=True)
+            r = requests.get(url, allow_redirects=True, timeout=30)
             ext = get_filename_from_cd(r.headers.get('content-disposition'))[1]
             full_path += ext
             path += ext
