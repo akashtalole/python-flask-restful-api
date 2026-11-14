@@ -8,11 +8,11 @@ import sys
 from flask import Flask, json, make_response
 from flask_celeryext import FlaskCeleryExt
 from app.settings import get_settings, get_setts
-from flask_migrate import Migrate, MigrateCommand
-from flask_script import Manager
+from flask_migrate import Migrate
 from flask_login import current_user
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from datetime import timedelta
 from flask_cors import CORS
 from flask_rest_jsonapi.errors import jsonapi_errors
@@ -52,7 +52,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 static_dir = os.path.dirname(os.path.dirname(__file__)) + "/static"
 template_dir = os.path.dirname(__file__) + "/templates"
 app = Flask(__name__, static_folder=static_dir, template_folder=template_dir)
-limiter = Limiter(app)
+limiter = Limiter(key_func=get_remote_address, app=app)
 env.read_envfile()
 
 
@@ -86,18 +86,15 @@ def create_app():
 
     app.config.from_object(env('APP_CONFIG', default='config.ProductionConfig'))
     db.init_app(app)
-    _manager = Manager(app)
-    _manager.add_command('db', MigrateCommand)
 
     if app.config['CACHING']:
-        cache.init_app(app, config={'CACHE_TYPE': 'simple'})
+        cache.init_app(app, config={'CACHE_TYPE': 'SimpleCache'})
     else:
-        cache.init_app(app, config={'CACHE_TYPE': 'null'})
+        cache.init_app(app, config={'CACHE_TYPE': 'NullCache'})
 
     stripe.api_key = 'SomeStripeKey'
     # Never ship a known default: use SECRET_KEY from the environment, else a random per-process key
     app.secret_key = os.getenv('SECRET_KEY') or secrets.token_urlsafe(32)
-    app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
     app.config['FILE_SYSTEM_STORAGE_FILE_VIEW'] = 'static'
 
     app.logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -111,11 +108,9 @@ def create_app():
     app.config['JWT_TOKEN_LOCATION'] = ['cookies', 'headers']
     app.config['JWT_REFRESH_COOKIE_PATH'] = '/v1/auth/token/refresh'
     app.config['JWT_SESSION_COOKIE'] = False
-    app.config['JWT_BLACKLIST_ENABLED'] = True
-    app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['refresh']
     _jwt = JWTManager(app)
-    _jwt.user_loader_callback_loader(jwt_user_loader)
-    _jwt.token_in_blacklist_loader(is_token_blacklisted)
+    _jwt.user_lookup_loader(jwt_user_loader)
+    _jwt.token_in_blocklist_loader(is_token_blacklisted)
 
     # setup celery
     app.config['CELERY_BROKER_URL'] = app.config['REDIS_URL']
@@ -191,10 +186,10 @@ def create_app():
                 pass
 
     app_created = True
-    return app, _manager, db, _jwt
+    return app, db, _jwt
 
 
-current_app, manager, database, jwt = create_app()
+current_app, database, jwt = create_app()
 init_filters(app)
 
 
@@ -205,15 +200,16 @@ def track_user():
         current_user.update_lat()
 
 
-def make_celery(app=None):
-    app = app or create_app()[0]
-    celery.conf.update(app.config)
-    ext = FlaskCeleryExt(app)
+def make_celery(flask_app=None):
+    flask_app = flask_app or app
+    celery.conf.update(flask_app.config)
+    ext = FlaskCeleryExt(flask_app)
     return ext.celery
 
 
 # Health-check
-health = HealthCheck(current_app, "/health-check")
+health = HealthCheck()
+current_app.add_url_rule("/health-check", "healthcheck", view_func=health.run)
 health.add_check(health_check_celery)
 health.add_check(health_check_db)
 with current_app.app_context():

@@ -1,11 +1,13 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.event import EventFactoryBasic
 from app.models.microlocation import db, Microlocation
 
 
-class MicrolocationFactory(factory.alchemy.SQLAlchemyModelFactory):
+class MicrolocationFactory(BaseFactory):
     class Meta:
         model = Microlocation
         sqlalchemy_session = db.session

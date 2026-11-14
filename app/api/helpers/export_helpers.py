@@ -13,7 +13,7 @@ from flask_login import current_user as current_logged_user
 
 from app.api.helpers.db import save_to_db
 from app.api.helpers.storage import upload, UPLOAD_PATHS, UploadedFile
-from app.api.helpers.utilities import is_downloadable, get_filename_from_cd
+from app.api.helpers.utilities import is_downloadable, get_filename_from_cd, safe_remote_request
 from app.models import db
 from app.models.custom_form import CustomForms
 from app.models.event import Event
@@ -81,7 +81,7 @@ EXPORTS = [
 ]
 
 # strings to remove in a filename
-FILENAME_EXCLUDE = '<>:"/\|?*;'
+FILENAME_EXCLUDE = '<>:"/\\|?*;'
 
 
 # FUNCTIONS
@@ -161,7 +161,7 @@ def _download_media(data, srv, dir_path, settings):
         if not is_downloadable(url):
             continue
         try:
-            r = requests.get(url, allow_redirects=True, timeout=30)
+            r = safe_remote_request('GET', url)
             ext = get_filename_from_cd(r.headers.get('content-disposition'))[1]
             full_path += ext
             path += ext

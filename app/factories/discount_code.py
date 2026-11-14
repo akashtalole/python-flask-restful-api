@@ -1,12 +1,14 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.ticket import TicketFactory
 from app.factories.user import UserFactory
 from app.models.discount_code import db, DiscountCode
 
 
-class DiscountCodeFactory(factory.alchemy.SQLAlchemyModelFactory):
+class DiscountCodeFactory(BaseFactory):
     # class name to be DiscountCodeEventFactory?
     class Meta:
         model = DiscountCode
@@ -28,7 +30,7 @@ class DiscountCodeFactory(factory.alchemy.SQLAlchemyModelFactory):
     event_id = None
 
 
-class DiscountCodeTicketFactory(factory.alchemy.SQLAlchemyModelFactory):
+class DiscountCodeTicketFactory(BaseFactory):
     class Meta:
         model = DiscountCode
         sqlalchemy_session = db.session

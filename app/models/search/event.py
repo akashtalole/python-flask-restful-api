@@ -1,14 +1,14 @@
 """Models and functions for full-text search on events"""
-from elasticsearch_dsl import DocType, Integer, Search, Text
+from elasticsearch_dsl import Document, Integer, Search, Text
 
 from app.views.elastic_search import client
 
 
-class SearchableEvent(DocType):
+class SearchableEvent(Document):
     """Data class for putting events into Elasticsearch"""
 
-    class Meta:
-        index = 'event'
+    class Index:
+        name = 'event'
 
     id = Integer()
     name = Text()
@@ -16,7 +16,6 @@ class SearchableEvent(DocType):
     location_name = Text()
     owner_name = Text()
     owner_description = Text()
-    meta = Meta()
 
     def from_event(self, db_event):
         """Convert an existing (sqlalchemy-)event into an Elasticsearch event"""
@@ -28,6 +27,7 @@ class SearchableEvent(DocType):
         self.location_name = db_event.location_name
         self.owner_name = db_event.owner_name
         self.owner_description = db_event.owner_description
+
 
 def find_all(search_strings, client=client):
     search = Search().using(client)

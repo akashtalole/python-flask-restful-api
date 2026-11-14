@@ -103,6 +103,4 @@ def get_count(query):
     :param query: <sqlalchemy.orm.query.Query> a SQLAlchemy query object
     :return: Number
     """
-    count_q = query.statement.with_only_columns([func.count()]).order_by(None)
-    count = query.session.execute(count_q).scalar()
-    return count
+    return query.order_by(None).count()

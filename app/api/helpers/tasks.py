@@ -1,13 +1,17 @@
 import csv
 import json
+import mimetypes
 import os
 import requests
+import smtplib
+import ssl
 import uuid
+from email.message import EmailMessage
 
 from flask import current_app, render_template
 from flask_celeryext import RequestContextTask
-from marrow.mailer import Mailer, Message
 from app import get_settings
+import python_http_client.exceptions
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import (
     Mail, Attachment, FileContent, FileName, From,
@@ -57,8 +61,13 @@ def empty_attachments_send(mail_client, message):
     Empty attachments and send mail
     """
     logging.warning("Attachments could not be sent. Sending confirmation mail without attachments...")
-    message.attachments = []
     mail_client.send(message)
+
+
+def _http_error_code(error):
+    """Status code of urllib and python_http_client HTTP errors"""
+    return getattr(error, 'code', None) or getattr(error, 'status_code', None)
+
 
 @celery.task(name='send.email.post.sendgrid')
 def send_email_task_sendgrid(payload, headers, smtp_config):
@@ -83,45 +92,75 @@ def send_email_task_sendgrid(payload, headers, smtp_config):
         logging.info('Sending an email regarding {} on behalf of {}'.format(payload["subject"], payload["from"]))
         sendgrid_client.send(message)
         logging.info('Email sent successfully')
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
+    except (urllib.error.HTTPError, python_http_client.exceptions.HTTPError) as e:
+        error_code = _http_error_code(e)
+        if error_code == 429:
             logging.warning("Sendgrid quota has exceeded")
             send_email_task_smtp.delay(payload=payload, headers=None, smtp_config=smtp_config)
-        elif e.code == 554:
+        elif error_code == 554:
+            # retry without attachments
+            message = Mail(from_email=From(payload['from'], payload['fromname']),
+                           to_emails=payload['to'],
+                           subject=payload['subject'],
+                           html_content=payload["html"])
             empty_attachments_send(sendgrid_client, message)
         else:
             logging.exception("The following error has occurred with sendgrid-{}".format(str(e)))
 
 
+def _build_smtp_message(payload, with_attachments=True):
+    message = EmailMessage()
+    message['From'] = payload['from']
+    message['To'] = payload['to']
+    message['Subject'] = payload['subject']
+    message.set_content(strip_tags(payload['html']))
+    message.add_alternative(payload['html'], subtype='html')
+    if with_attachments and payload['attachments'] is not None:
+        for attachment in payload['attachments']:
+            mime_type = mimetypes.guess_type(attachment)[0] or 'application/octet-stream'
+            maintype, subtype = mime_type.split('/', 1)
+            with open(attachment, 'rb') as f:
+                message.add_attachment(f.read(), maintype=maintype, subtype=subtype,
+                                       filename=os.path.basename(attachment))
+    return message
+
+
+def _send_via_smtp(smtp_config, message):
+    """
+    Sends the message through the configured SMTP server.
+    `encryption` is one of 'ssl', 'required' (STARTTLS), 'optional' (STARTTLS if offered) or 'none'
+    """
+    host, port = smtp_config['host'], int(smtp_config['port'])
+    encryption = smtp_config['encryption']
+    context = ssl.create_default_context()
+
+    if encryption == 'ssl':
+        server = smtplib.SMTP_SSL(host, port, context=context, timeout=30)
+    else:
+        server = smtplib.SMTP(host, port, timeout=30)
+
+    with server as connection:
+        if encryption == 'required':
+            connection.starttls(context=context)
+        elif encryption == 'optional' and connection.has_extn('starttls'):
+            connection.starttls(context=context)
+        if smtp_config['username']:
+            connection.login(smtp_config['username'], smtp_config['password'])
+        connection.send_message(message)
+
+
 @celery.task(name='send.email.post.smtp')
 def send_email_task_smtp(payload, smtp_config, headers=None):
-    mailer_config = {
-            'transport': {
-                'use': 'smtp',
-                'host': smtp_config['host'],
-                'username': smtp_config['username'],
-                'password': smtp_config['password'],
-                'tls': smtp_config['encryption'],
-                'port': smtp_config['port']
-            }
-        }
-
     try:
-        mailer = Mailer(mailer_config)
-        mailer.start()
-        message = Message(author=payload['from'], to=payload['to'])
-        message.subject = payload['subject']
-        message.plain = strip_tags(payload['html'])
-        message.rich = payload['html']
-        if payload['attachments'] is not None:
-            for attachment in payload['attachments']:
-                message.attach(name=attachment)
-        mailer.send(message)
+        _send_via_smtp(smtp_config, _build_smtp_message(payload))
         logging.info('Message sent via SMTP')
-    except urllib.error.HTTPError as e:
-        if e.code == 554:
-            empty_attachments_send(mailer, message)
-    mailer.stop()
+    except smtplib.SMTPResponseException as e:
+        if e.smtp_code == 554:
+            logging.warning("Attachments could not be sent. Sending confirmation mail without attachments...")
+            _send_via_smtp(smtp_config, _build_smtp_message(payload, with_attachments=False))
+        else:
+            raise
+
 
 @celery.task(base=RequestContextTask, name='resize.event.images', bind=True)
 def resize_event_images_task(self, event_id, original_image_url):

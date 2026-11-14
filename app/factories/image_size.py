@@ -1,10 +1,12 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.models.image_size import db, ImageSizes
 
 
-class EventImageSizeFactory(factory.alchemy.SQLAlchemyModelFactory):
+class EventImageSizeFactory(BaseFactory):
     class Meta:
         model = ImageSizes
         sqlalchemy_session = db.session
@@ -26,7 +28,7 @@ class EventImageSizeFactory(factory.alchemy.SQLAlchemyModelFactory):
     logo_height = 10
 
 
-class SpeakerImageSizeFactory(factory.alchemy.SQLAlchemyModelFactory):
+class SpeakerImageSizeFactory(BaseFactory):
     class Meta:
         model = ImageSizes
         sqlalchemy_session = db.session

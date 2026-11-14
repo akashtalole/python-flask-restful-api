@@ -1,9 +1,11 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 from app.models.module import db, Module
 
 
-class ModuleFactory(factory.alchemy.SQLAlchemyModelFactory):
+class ModuleFactory(BaseFactory):
 
     class Meta:
         model = Module

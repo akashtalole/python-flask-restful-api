@@ -1,5 +1,7 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.event import EventFactoryBasic
 from app.factories.ticket import TicketFactory
@@ -7,7 +9,7 @@ from app.factories.user import UserFactory
 from app.models.access_code import db, AccessCode
 
 
-class AccessCodeFactory(factory.alchemy.SQLAlchemyModelFactory):
+class AccessCodeFactory(BaseFactory):
     class Meta:
         model = AccessCode
         sqlalchemy_session = db.session

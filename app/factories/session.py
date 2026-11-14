@@ -1,5 +1,7 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.event import EventFactoryBasic
 from app.factories.microlocation import MicrolocationFactory
@@ -8,7 +10,7 @@ from app.factories.track import TrackFactory
 from app.models.session import db, Session
 
 
-class SessionFactory(factory.alchemy.SQLAlchemyModelFactory):
+class SessionFactory(BaseFactory):
     class Meta:
         model = Session
         sqlalchemy_session = db.session

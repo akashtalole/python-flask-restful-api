@@ -1,10 +1,12 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.models.role import db, Role
 
 
-class RoleFactory(factory.alchemy.SQLAlchemyModelFactory):
+class RoleFactory(BaseFactory):
     class Meta:
         model = Role
         sqlalchemy_session = db.session

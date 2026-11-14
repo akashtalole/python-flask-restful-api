@@ -1,11 +1,14 @@
 from errno import errorcode
 
-from celery.task.control import inspect
 from flask import current_app
 from redis.exceptions import ConnectionError
 
 from app.models import db
 from sentry_sdk import capture_exception, capture_message
+from sqlalchemy import text
+
+from app.views.celery_ import celery
+
 
 def health_check_celery():
     """
@@ -13,7 +16,7 @@ def health_check_celery():
     :return:
     """
     try:
-        d = inspect().stats()
+        d = celery.control.inspect().stats()
         if not d:
             capture_message('No running Celery workers were found.')
             return False, 'No running Celery workers were found.'
@@ -41,7 +44,7 @@ def health_check_db():
     :return:
     """
     try:
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
         return True, 'database ok'
     except:
         capture_exception()
@@ -56,7 +59,7 @@ def check_migrations():
     # Get all the models in the db, all models should have a explicit __tablename__
     classes, models, table_names = [], [], []
     # noinspection PyProtectedMember
-    for class_ in list(db.Model._decl_class_registry.values()):
+    for class_ in list(db.Model.registry._class_registry.values()):
         try:
             table_names.append(class_.__tablename__)
             classes.append(class_)

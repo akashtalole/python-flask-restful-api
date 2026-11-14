@@ -1,10 +1,12 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.models.user import db, User
 
 
-class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
+class UserFactory(BaseFactory):
     class Meta:
         model = User
         sqlalchemy_session = db.session

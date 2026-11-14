@@ -1,11 +1,13 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.event import EventFactoryBasic
 from app.models.tax import db, Tax
 
 
-class TaxFactory(factory.alchemy.SQLAlchemyModelFactory):
+class TaxFactory(BaseFactory):
     class Meta:
         model = Tax
         sqlalchemy_session = db.session

@@ -8,8 +8,7 @@ from functools import wraps
 import requests
 from flask import request, jsonify, make_response, Blueprint, send_file
 from flask_jwt_extended import (
-    jwt_required, jwt_refresh_token_required,
-    fresh_jwt_required, unset_jwt_cookies,
+    jwt_required, unset_jwt_cookies,
     current_user, create_access_token,
     create_refresh_token, set_refresh_cookies,
     get_jwt_identity)
@@ -71,11 +70,11 @@ def authenticate(allow_refresh_token=False, existing_identity=None):
     add_refresh_token = allow_refresh_token and remember_me
 
     expiry_time = timedelta(minutes=90) if add_refresh_token else None
-    access_token = create_access_token(identity.id, fresh=True, expires_delta=expiry_time)
+    access_token = create_access_token(str(identity.id), fresh=True, expires_delta=expiry_time)
     response_data = {'access_token': access_token}
 
     if add_refresh_token:
-        refresh_token = create_refresh_token(identity.id)
+        refresh_token = create_refresh_token(str(identity.id))
         if include_in_response:
             response_data['refresh_token'] = refresh_token
 
@@ -94,13 +93,13 @@ def login():
 
 
 @auth_routes.route('/fresh-login', methods=['POST'])
-@jwt_required
+@jwt_required()
 def fresh_login():
     return authenticate(existing_identity=current_user)
 
 
 @auth_routes.route('/token/refresh', methods=['POST'])
-@jwt_refresh_token_required
+@jwt_required(refresh=True)
 def refresh_token():
     current_user = get_jwt_identity()
     new_token = create_access_token(identity=current_user, fresh=False)
@@ -115,7 +114,7 @@ def logout():
 
 
 @auth_routes.route('/blacklist', methods=['POST'])
-@jwt_required
+@jwt_required()
 def blacklist_token_rquest():
     blacklist_token(current_user)
     return jsonify({'success': True})
@@ -176,7 +175,7 @@ def get_token(provider):
     else:
         return make_response(jsonify(
             message="No support for {}".format(provider)), 200)
-    response = requests.post(provider_class.get_token_uri(), params=payload)
+    response = requests.post(provider_class.get_token_uri(), params=payload, timeout=30)
     return make_response(jsonify(token=response.json()), 200)
 
 
@@ -192,15 +191,17 @@ def login_user(provider):
         }
         if not payload['client_id'] or not payload['client_secret']:
             raise NotImplementedError({'source': ''}, 'Facebook Login Not Configured')
-        access_token = requests.get('https://graph.facebook.com/v3.0/oauth/access_token', params=payload).json()
+        access_token = requests.get('https://graph.facebook.com/v3.0/oauth/access_token', params=payload,
+                                    timeout=30).json()
         payload_details = {
             'input_token': access_token['access_token'],
             'access_token': provider_class.get_client_id() + '|' + provider_class.get_client_secret()
         }
-        details = requests.get('https://graph.facebook.com/debug_token', params=payload_details).json()
+        details = requests.get('https://graph.facebook.com/debug_token', params=payload_details, timeout=30).json()
         user_details = requests.get('https://graph.facebook.com/v3.0/' + details['data']['user_id'],
                                     params={'access_token': access_token['access_token'],
-                                            'fields': 'first_name, last_name, email'}).json()
+                                            'fields': 'first_name, last_name, email'},
+                                    timeout=30).json()
 
         if get_count(db.session.query(User).filter_by(email=user_details['email'])) > 0:
             user = db.session.query(User).filter_by(email=user_details['email']).one()
@@ -245,7 +246,7 @@ def login_user(provider):
     else:
         return make_response(jsonify(
             message="No support for {}".format(provider)), 200)
-    response = requests.post(provider_class.get_token_uri(), params=payload)
+    response = requests.post(provider_class.get_token_uri(), params=payload, timeout=30)
     return make_response(jsonify(token=response.json()), 200)
 
 
@@ -346,7 +347,7 @@ def reset_password_patch():
 
 
 @auth_routes.route('/change-password', methods=['POST'])
-@fresh_jwt_required
+@jwt_required(fresh=True)
 def change_password():
     old_password = request.json['data']['old-password']
     new_password = request.json['data']['new-password']
@@ -387,7 +388,7 @@ def return_file(file_name_prefix, file_path, identifier):
 
 
 @ticket_blueprint.route('/tickets/<string:order_identifier>')
-@jwt_required
+@jwt_required()
 def ticket_attendee_authorized(order_identifier):
     if current_user:
         try:
@@ -409,7 +410,7 @@ def ticket_attendee_authorized(order_identifier):
 
 
 @ticket_blueprint.route('/orders/invoices/<string:order_identifier>')
-@jwt_required
+@jwt_required()
 def order_invoices(order_identifier):
     if current_user:
         try:
@@ -431,7 +432,7 @@ def order_invoices(order_identifier):
 
 
 @ticket_blueprint.route('/events/invoices/<string:invoice_identifier>')
-@jwt_required
+@jwt_required()
 def event_invoices(invoice_identifier):
     if not current_user:
         return ForbiddenError({'source': ''}, 'Authentication Required to access Invoice').respond()
@@ -468,8 +469,9 @@ def requires_basic_auth(f):
 @authorised_blueprint.route('/environment')
 @requires_basic_auth
 def environment_details():
-    envdump = EnvironmentDump(include_config=False)
-    return envdump.dump_environment()
+    # the process section would expose environment variables (database URL, keys...)
+    envdump = EnvironmentDump(include_process=False)
+    return envdump.run()
 
 
 @ticket_blueprint.route('/orders/resend-email', methods=['POST'])
@@ -508,7 +510,7 @@ def resend_emails():
 
 
 @ticket_blueprint.route('/orders/calculate-amount', methods=['POST'])
-@jwt_required
+@jwt_required()
 def calculate_amount():
     data = request.get_json()
     tickets = data['tickets']

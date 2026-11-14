@@ -57,8 +57,11 @@ def blacklist_token(user):
     db.session.commit()
 
 
-def is_token_blacklisted(token):
-    blacklist_time = UserTokenBlackListTime.query.filter_by(user_id=token['identity']).first()
+def is_token_blacklisted(jwt_header, token):
+    # Only refresh tokens are checked against the blacklist
+    if token.get('type') != 'refresh':
+        return False
+    blacklist_time = UserTokenBlackListTime.query.filter_by(user_id=int(token['sub'])).first()
     if not blacklist_time:
         return False
     return token['iat'] < blacklist_time.blacklisted_at.timestamp()

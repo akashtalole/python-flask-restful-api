@@ -1,10 +1,12 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.models.setting import db, Setting
 
 
-class SettingFactory(factory.alchemy.SQLAlchemyModelFactory):
+class SettingFactory(BaseFactory):
 
     class Meta:
         model = Setting

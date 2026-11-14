@@ -1,10 +1,12 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.models.event import db, Event
 
 
-class EventFactoryBasic(factory.alchemy.SQLAlchemyModelFactory):
+class EventFactoryBasic(BaseFactory):
     class Meta:
         model = Event
         sqlalchemy_session = db.session

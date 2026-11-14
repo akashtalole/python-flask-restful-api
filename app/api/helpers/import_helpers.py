@@ -9,13 +9,13 @@ import requests
 from flask import current_app as app
 from flask import request
 from flask_jwt_extended import current_user
-from werkzeug import secure_filename
+from werkzeug.utils import secure_filename
 
 from app.api.helpers.db import save_to_db
 from app.api.helpers.errors import ServerError, NotFoundError
 from app.api.helpers.storage import UploadedFile, upload, UploadedMemory, \
     UPLOAD_PATHS
-from app.api.helpers.utilities import update_state, write_file, is_downloadable
+from app.api.helpers.utilities import update_state, write_file, is_downloadable, safe_remote_request
 from app.models import db
 from app.models.custom_form import CustomForms
 from app.models.event import Event
@@ -228,7 +228,7 @@ def _upload_media(task_handle, event_id, base_path):
             try:
                 filename = UPLOAD_PATHS[name][field].rsplit('/', 1)[1]
                 if is_downloadable(path):
-                    r = requests.get(path, allow_redirects=True)
+                    r = safe_remote_request('GET', path)
                     file = UploadedMemory(r.content, filename)
                 else:
                     file = None

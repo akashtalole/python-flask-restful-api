@@ -1,11 +1,6 @@
-import base64
-import json
-
-from flask import _app_ctx_stack as ctx_stack
-from flask_jwt_extended.view_decorators import _decode_jwt_from_request, _load_user
-from flask_jwt_extended.config import config
-from flask_jwt_extended.exceptions import JWTExtendedException, UserLoadError
-from flask_scrypt import check_password_hash
+from flask import request, current_app
+from flask_jwt_extended import current_user, decode_token, verify_jwt_in_request
+from flask_jwt_extended.exceptions import JWTExtendedException
 from jwt.exceptions import PyJWTError
 
 from app.models.user import User
@@ -28,24 +23,51 @@ def jwt_authenticate(email, password):
         return None
 
 
-def jwt_user_loader(identity):
-    return User.query.filter_by(id=identity, deleted_at=None).first()
+def jwt_user_loader(jwt_header, jwt_data):
+    return User.query.filter_by(id=int(jwt_data['sub']), deleted_at=None).first()
+
+
+def _encoded_access_token():
+    """Reads the encoded access token from the configured header or cookie"""
+    config = current_app.config
+    locations = config.get('JWT_TOKEN_LOCATION', ['headers'])
+    if isinstance(locations, str):
+        locations = [locations]
+
+    if 'headers' in locations:
+        header = request.headers.get(config.get('JWT_HEADER_NAME', 'Authorization'), '')
+        parts = header.split()
+        header_type = config.get('JWT_HEADER_TYPE', 'Bearer')
+        if len(parts) == 2 and parts[0] == header_type:
+            return parts[1]
+
+    if 'cookies' in locations:
+        cookie = request.cookies.get(config.get('JWT_ACCESS_COOKIE_NAME', 'access_token_cookie'))
+        if cookie:
+            return cookie
+
+    return None
 
 
 def get_identity():
     """
-    To be used only if identity for expired tokens is required, otherwise use current_identity from flask_jwt
+    To be used only if identity for expired tokens is required, otherwise use current_user from flask_jwt_extended
     :return:
     """
-    token = None
     try:
-        token = _decode_jwt_from_request('access')
+        verify_jwt_in_request()
+        return current_user
     except (JWTExtendedException, PyJWTError):
-        token = getattr(ctx_stack.top, 'expired_jwt', None)
+        pass
 
+    token = _encoded_access_token()
     if token:
         try:
-            _load_user(token[config.identity_claim_key])
-            return getattr(ctx_stack.top, 'jwt_user', None)
-        except UserLoadError:
-            pass
+            # Signature is still verified, only the expiry is ignored
+            jwt_data = decode_token(token, allow_expired=True)
+        except (JWTExtendedException, PyJWTError):
+            return None
+        if jwt_data.get('type') == 'access':
+            return jwt_user_loader({}, jwt_data)
+
+    return None

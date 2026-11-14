@@ -35,7 +35,7 @@ def string_empty(value):
 def strip_tags(html):
     if html is None:
         return None
-    return bleach.clean(html, tags=[], attributes={}, styles=[], strip=True)
+    return bleach.clean(html, tags=[], attributes={}, strip=True)
 
 
 def get_serializer(secret_key=None):
@@ -85,15 +85,28 @@ def validate_remote_url(url):
             raise ValueError('Invalid image URL')
 
 
+def safe_remote_request(method, url, timeout=30, max_redirects=5, **kwargs):
+    """
+    Performs a request to a user supplied URL. The URL and every redirect target
+    have to pass `validate_remote_url`, so redirects cannot be used to reach internal services.
+    """
+    for _ in range(max_redirects + 1):
+        validate_remote_url(url)
+        response = requests.request(method, url, allow_redirects=False, timeout=timeout, **kwargs)
+        if not response.is_redirect:
+            return response
+        url = urllib.parse.urljoin(url, response.headers['Location'])
+    raise ValueError('Too many redirects')
+
+
 def is_downloadable(url):
     """
     Does the url contain a downloadable resource
     """
     try:
-        validate_remote_url(url)
-    except ValueError:
+        h = safe_remote_request('HEAD', url)
+    except (ValueError, requests.RequestException):
         return False
-    h = requests.head(url, allow_redirects=True, timeout=30)
     header = h.headers
     content_type = header.get('content-type')
     # content_length = header.get('content-length', 1e10)

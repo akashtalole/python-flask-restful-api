@@ -1,3 +1,4 @@
+import os
 import secrets
 
 import stripe
@@ -18,7 +19,8 @@ def get_settings(from_db=False):
     if not from_db and 'custom_settings' in current_app.config:
         return current_app.config['custom_settings']
     s = Setting.query.order_by(desc(Setting.id)).first()
-    app_environment = current_app.config.get('ENV', 'production')
+    # `ENV` was removed from the Flask config in 2.3, FLASK_ENV is still used by deployments
+    app_environment = current_app.config.get('ENV') or os.getenv('FLASK_ENV', 'production')
     if s is None:
         set_settings(secret=secrets.token_urlsafe(32), app_name='Open Event', app_environment=app_environment)
     else:

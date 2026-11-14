@@ -1,12 +1,14 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.event import EventFactoryBasic
 from app.models import db
 from app.models.stripe_authorization import StripeAuthorization
 
 
-class StripeAuthorizationFactory(factory.alchemy.SQLAlchemyModelFactory):
+class StripeAuthorizationFactory(BaseFactory):
     class Meta:
         model = StripeAuthorization
         sqlalchemy_session = db.session

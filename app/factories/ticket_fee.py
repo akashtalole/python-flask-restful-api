@@ -1,10 +1,12 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.models.ticket_fee import db, TicketFees
 
 
-class TicketFeesFactory(factory.alchemy.SQLAlchemyModelFactory):
+class TicketFeesFactory(BaseFactory):
     class Meta:
         model = TicketFees
         sqlalchemy_session = db.session

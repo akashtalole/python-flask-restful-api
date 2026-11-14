@@ -1,11 +1,13 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 from app.factories.role import RoleFactory
 from app.factories.service import ServiceFactory
 from app.models.permission import db, Permission
 
 
-class EventRolePermissionsFactory(factory.alchemy.SQLAlchemyModelFactory):
+class EventRolePermissionsFactory(BaseFactory):
     class Meta:
         model = Permission
         sqlalchemy_session = db.session

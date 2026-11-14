@@ -4,6 +4,7 @@ import unicodedata
 import bleach
 import diff_match_patch
 from bleach.callbacks import target_blank, nofollow
+from bleach.css_sanitizer import CSSSanitizer
 from itertools import zip_longest
 
 
@@ -46,15 +47,15 @@ def clean_html(html):
     attrs = {
         '*': ['style']
     }
-    styles = ['text-align', 'font-weight', 'text-decoration']
-    cleaned = bleach.clean(html, tags=tags, attributes=attrs, styles=styles, strip=True)
+    css_sanitizer = CSSSanitizer(allowed_css_properties=['text-align', 'font-weight', 'text-decoration'])
+    cleaned = bleach.clean(html, tags=tags, attributes=attrs, css_sanitizer=css_sanitizer, strip=True)
     return bleach.linkify(cleaned, callbacks=[nofollow, target_blank], parse_email=True)
 
 
 def strip_tags(html):
     if html is None:
         return None
-    return bleach.clean(html, tags=[], attributes={}, styles=[], strip=True)
+    return bleach.clean(html, tags=[], attributes={}, strip=True)
 
 
 def side_by_side_diff(old_text, new_text):

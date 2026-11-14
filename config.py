@@ -57,7 +57,7 @@ class Config(object):
     DATABASE_QUERY_TIMEOUT = 0.1
     SENTRY_DSN = env('SENTRY_DSN', default=None)
     ENABLE_ELASTICSEARCH = env.bool('ENABLE_ELASTICSEARCH', default=False)
-    ELASTICSEARCH_HOST = env('ELASTICSEARCH_HOST', default='localhost:9200')
+    ELASTICSEARCH_HOST = env('ELASTICSEARCH_HOST', default='http://localhost:9200')
     REDIS_URL = env('REDIS_URL', default='redis://localhost:6379/0')
     CELERY_BACKKEND = env('CELERY_BACKEND', default='redis')
 

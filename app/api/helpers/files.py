@@ -108,7 +108,7 @@ def create_save_resized_image(image_file, basewidth=None, maintain_aspect=None, 
             width_percent = (basewidth / float(img.size[0]))
             height_size = int((float(img.size[1]) * float(width_percent)))
 
-        img = img.resize((basewidth, height_size), PIL.Image.ANTIALIAS)
+        img = img.resize((basewidth, height_size), PIL.Image.LANCZOS)
 
     temp_file_relative_path = 'static/media/temp/' + generate_hash(str(image_file)) + get_file_name() + '.jpg'
     temp_file_path = app.config['BASE_DIR'] + '/' + temp_file_relative_path

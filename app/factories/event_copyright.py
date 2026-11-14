@@ -1,11 +1,13 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.event import EventFactoryBasic
 from app.models.event_copyright import db, EventCopyright
 
 
-class EventCopyrightFactory(factory.alchemy.SQLAlchemyModelFactory):
+class EventCopyrightFactory(BaseFactory):
 
     class Meta:
         model = EventCopyright

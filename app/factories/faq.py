@@ -1,11 +1,13 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 from app.factories.event import EventFactoryBasic
 from app.factories.faq_type import FaqTypeFactory
 from app.models.faq import db, Faq
 
 
-class FaqFactory(factory.alchemy.SQLAlchemyModelFactory):
+class FaqFactory(BaseFactory):
 
     class Meta:
         model = Faq

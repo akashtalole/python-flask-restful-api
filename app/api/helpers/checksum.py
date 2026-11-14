@@ -5,7 +5,8 @@ import string
 import secrets
 import hashlib
 
-from Crypto.Cipher import AES
+# pycryptodome (not the legacy PyCrypto); AES-CBC with a fixed IV is mandated by the Paytm checksum protocol
+from Crypto.Cipher import AES  # nosec B413
 
 
 IV = "@@@@&&&&####$$$$"

@@ -1,10 +1,12 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.models.page import db, Page
 
 
-class PageFactory(factory.alchemy.SQLAlchemyModelFactory):
+class PageFactory(BaseFactory):
     class Meta:
         model = Page
         sqlalchemy_session = db.session

@@ -38,9 +38,10 @@ def rebuild_indices(client=client):
     redis_store.delete(REDIS_EVENT_DELETE)
 
     for index_class in INDEX_CLASSES:
-        if client.indices.exists(index_class.meta.index):
-            logger.info('Deleting index %s', index_class.meta.index)
-            client.indices.delete(index_class.meta.index)
+        index_name = index_class._index._name
+        if client.indices.exists(index=index_name):
+            logger.info('Deleting index %s', index_name)
+            client.indices.delete(index=index_name)
 
         index_class.init()
 

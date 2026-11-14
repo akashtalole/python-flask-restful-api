@@ -30,7 +30,7 @@ class EventSearchResultList(Resource):
     """
 
     def search(self, args, es_client=client):
-        search = Search(using=es_client, index=SearchableEvent.meta.index)
+        search = Search(using=es_client, index=SearchableEvent._index._name)
 
         if args.get('name'):
             search = search.query('fuzzy', name=args['name'])

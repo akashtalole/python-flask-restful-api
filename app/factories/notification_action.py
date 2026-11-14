@@ -1,11 +1,13 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 import app.models.notification as notification
 from app.models import db
 
 
-class NotificationActionFactory(factory.alchemy.SQLAlchemyModelFactory):
+class NotificationActionFactory(BaseFactory):
     class Meta:
         model = notification.NotificationAction
         sqlalchemy_session = db.session

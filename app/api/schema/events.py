@@ -34,6 +34,9 @@ class EventSchemaPublic(SoftDeletionSchema):
 
             if 'timezone' not in data:
                 data['timezone'] = event.timezone
+        if 'timezone' not in data:
+            # reported as a missing required field by the field validation
+            return
         try:
             timezone(data['timezone'])
         except pytz.exceptions.UnknownTimeZoneError:

@@ -81,7 +81,7 @@ class UserFavouriteEventDetail(ResourceDetail):
     """
     User Favourite Events detail by id
     """
-    @jwt_required
+    @jwt_required()
     def before_get_object(self, view_kwargs):
 
         if view_kwargs.get('id') is not None:

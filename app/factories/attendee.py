@@ -1,11 +1,13 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.event import EventFactoryBasic
 from app.models.ticket_holder import db, TicketHolder
 
 
-class AttendeeFactory(factory.alchemy.SQLAlchemyModelFactory):
+class AttendeeFactory(BaseFactory):
     class Meta:
         model = TicketHolder
         sqlalchemy_session = db.session

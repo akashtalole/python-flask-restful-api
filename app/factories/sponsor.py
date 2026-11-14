@@ -1,11 +1,13 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.event import EventFactoryBasic
 from app.models.sponsor import db, Sponsor
 
 
-class SponsorFactory(factory.alchemy.SQLAlchemyModelFactory):
+class SponsorFactory(BaseFactory):
     class Meta:
         model = Sponsor
         sqlalchemy_session = db.session

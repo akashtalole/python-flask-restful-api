@@ -1,11 +1,13 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 from app.factories.event import EventFactoryBasic
 from app.factories.user import UserFactory
 from app.models.email_notification import db, EmailNotification
 
 
-class EmailNotificationFactory(factory.alchemy.SQLAlchemyModelFactory):
+class EmailNotificationFactory(BaseFactory):
     class Meta:
         model = EmailNotification
         sqlalchemy_session = db.session

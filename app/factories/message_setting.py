@@ -1,9 +1,11 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 from app.models.message_setting import db, MessageSettings
 
 
-class MessageSettingsFactory(factory.alchemy.SQLAlchemyModelFactory):
+class MessageSettingsFactory(BaseFactory):
     class Meta:
         model = MessageSettings
         sqlalchemy_session = db.session

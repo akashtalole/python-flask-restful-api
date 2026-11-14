@@ -1,12 +1,14 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.factories.event import EventFactoryBasic
 from app.factories.ticket import TicketFactory
 from app.models.ticket import db, TicketTag
 
 
-class TicketTagFactory(factory.alchemy.SQLAlchemyModelFactory):
+class TicketTagFactory(BaseFactory):
     class Meta:
         model = TicketTag
         sqlalchemy_session = db.session

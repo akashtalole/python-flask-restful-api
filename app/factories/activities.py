@@ -1,10 +1,12 @@
 import factory
 
+from app.factories.base import BaseFactory
+
 import app.factories.common as common
 from app.models.activity import db, Activity
 
 
-class ActivityFactory(factory.alchemy.SQLAlchemyModelFactory):
+class ActivityFactory(BaseFactory):
 
     class Meta:
         model = Activity

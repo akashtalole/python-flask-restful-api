@@ -10,7 +10,7 @@
                 </p>
             </div>
         {% else %}
-            <div class="col-md-5 col-md-push-3">
+            <div class="col-md-5 offset-md-3">
                 <form method="post">
                     {% for f in form if f.type != 'CSRFTokenField' %}
                         <div class="form-group {% if f.errors %}has-error{% endif %}">
