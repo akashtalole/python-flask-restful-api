@@ -25,7 +25,7 @@ class TestSchema(Schema):
     field_with_default = fields.Boolean(required=True, default=False)
 
 
-class TestUtils:
+class TestUtils(unittest.TestCase):
 
     def test_patch_defaults_adds_defaults(self):
         with app.test_request_context():

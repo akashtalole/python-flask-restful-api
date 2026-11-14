@@ -2,10 +2,11 @@ import json
 import os
 import unittest
 from io import BytesIO
+from unittest.mock import patch
 from urllib.parse import urlparse
 
 from PIL import Image
-from flask import Request, request, jsonify
+from werkzeug.datastructures import FileStorage
 
 from app import current_app as app
 from app.api.helpers.files import create_save_resized_image, create_save_image_sizes
@@ -14,9 +15,20 @@ from tests.all.integration.setup_database import Setup
 from tests.all.integration.utils import OpenEventTestCase
 from app.api.helpers.utilities import image_link
 
+def fake_remote_image(url, timeout=30):
+    """Stands in for downloading `image_link`, keeps the tests offline"""
+    buffer = BytesIO()
+    Image.new('RGB', (1600, 900), 'blue').save(buffer, format='JPEG')
+    buffer.seek(0)
+    return buffer
+
+
 class TestFilesHelperValidation(OpenEventTestCase):
     def setUp(self):
         self.app = Setup.create_app()
+        patcher = patch('app.api.helpers.files.safe_urlopen', side_effect=fake_remote_image)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def getsizes(self, file):
         # get file size *and* image size (None if not known)
@@ -42,71 +54,37 @@ class TestFilesHelperValidation(OpenEventTestCase):
     def test_upload_single_file(self):
         """Method to test uploading of single file"""
 
-        class FileObj(BytesIO):
-
-            def close(self):
-                pass
-
-        class MyRequest(Request):
-            def _get_file_stream(*args, **kwargs):
-                return FileObj()
-
-        app.request_class = MyRequest
-
-        @app.route("/test_upload", methods=['POST'])
-        def upload():
-            files = request.files['file']
-            file_uploaded = uploaded_file(files=files)
-            return jsonify(
-                {'path': file_uploaded.file_path,
-                 'name': file_uploaded.filename})
-
         with app.test_request_context():
-            client = app.test_client()
-            resp = client.post('/test_upload', data={'file': (BytesIO(b'1,2,3,4'), 'test_file.csv')})
-            data = resp.get_json()
-            file_path = data['path']
-            filename = data['name']
-            actual_file_path = app.config.get('BASE_DIR') + '/static/uploads/' + filename
-            self.assertEqual(file_path, actual_file_path)
-            self.assertTrue(os.path.exists(file_path))
+            file = FileStorage(stream=BytesIO(b'1,2,3,4'), filename='test_file.csv')
+            file_uploaded = uploaded_file(files=file)
+            actual_file_path = app.config.get('BASE_DIR') + '/static/uploads/' + file_uploaded.filename
+            self.assertEqual(file_uploaded.file_path, actual_file_path)
+            self.assertTrue(os.path.exists(file_uploaded.file_path))
+            with open(file_uploaded.file_path, 'rb') as saved:
+                self.assertEqual(saved.read(), b'1,2,3,4')
 
     def test_upload_multiple_file(self):
         """Method to test uploading of multiple files"""
 
-        class FileObj(BytesIO):
-
-            def close(self):
-                pass
-
-        class MyRequest(Request):
-            def _get_file_stream(*args, **kwargs):
-                return FileObj()
-
-        app.request_class = MyRequest
-
-        @app.route("/test_upload_multi", methods=['POST'])
-        def upload_multi():
-            files = request.files.getlist('files[]')
-            file_uploaded = uploaded_file(files=files, multiple=True)
-            files_uploaded = []
-            for file in file_uploaded:
-                files_uploaded.append({'path': file.file_path,
-                                      'name': file.filename})
-            return jsonify({"files": files_uploaded})
-
         with app.test_request_context():
-            client = app.test_client()
-            resp = client.post('/test_upload_multi',
-                               data={'files[]': [(BytesIO(b'1,2,3,4'), 'test_file.csv'),
-                                                 (BytesIO(b'10,20,30,40'), 'test_file2.csv')]})
-            datas = resp.get_json()['files']
-            for data in datas:
-                file_path = data['path']
-                filename = data['name']
-                actual_file_path = app.config.get('BASE_DIR') + '/static/uploads/' + filename
-                self.assertEqual(file_path, actual_file_path)
-                self.assertTrue(os.path.exists(file_path))
+            files = [FileStorage(stream=BytesIO(b'1,2,3,4'), filename='test_file.csv'),
+                     FileStorage(stream=BytesIO(b'10,20,30,40'), filename='test_file2.csv')]
+            files_uploaded = uploaded_file(files=files, multiple=True)
+            self.assertEqual(len(files_uploaded), 2)
+            for file_uploaded in files_uploaded:
+                actual_file_path = app.config.get('BASE_DIR') + '/static/uploads/' + file_uploaded.filename
+                self.assertEqual(file_uploaded.file_path, actual_file_path)
+                self.assertTrue(os.path.exists(file_uploaded.file_path))
+
+    def test_remote_urls_are_restricted(self):
+        """Only public http(s) URLs may be fetched (no local files, no internal network)"""
+        from app.api.helpers.utilities import validate_remote_url
+
+        for url in ['file:///etc/passwd', 'ftp://example.com/image.png', 'http://127.0.0.1/image.png',
+                    'http://localhost:8080/image.png', 'http://169.254.169.254/latest/meta-data/',
+                    'http://[::1]/image.png', 'http://10.0.0.5/image.png', 'not a url']:
+            with self.assertRaises(ValueError, msg=url):
+                validate_remote_url(url)
 
     def test_create_save_resized_image(self):
         """Method to test create resized images"""

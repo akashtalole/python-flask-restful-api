@@ -84,5 +84,52 @@ class TestUtilitiesHelperValidation(unittest.TestCase):
         self.assertEqual(test_future_date, datetime.datetime(2000, 9, 18))
 
 
+class TestSafeRemoteRequest(unittest.TestCase):
+    """Redirects of user supplied URLs must not lead to internal services"""
+
+    @staticmethod
+    def response(status, location=None):
+        from unittest.mock import MagicMock
+        resp = MagicMock()
+        resp.is_redirect = location is not None
+        resp.headers = {'Location': location} if location else {}
+        resp.status_code = status
+        return resp
+
+    def test_rejects_internal_redirect_targets(self):
+        from unittest.mock import patch
+        from app.api.helpers.utilities import safe_remote_request
+
+        with patch('app.api.helpers.utilities.validate_remote_url') as validate, \
+                patch('app.api.helpers.utilities.requests.request') as request:
+            request.return_value = self.response(302, 'http://169.254.169.254/latest/meta-data/')
+            validate.side_effect = [None, ValueError('Invalid image URL')]
+            with self.assertRaises(ValueError):
+                safe_remote_request('GET', 'https://example.com/image.png')
+            self.assertEqual(request.call_count, 1)  # the internal target was never requested
+
+    def test_follows_valid_redirects(self):
+        from unittest.mock import patch
+        from app.api.helpers.utilities import safe_remote_request
+
+        final = self.response(200)
+        with patch('app.api.helpers.utilities.validate_remote_url'), \
+                patch('app.api.helpers.utilities.requests.request') as request:
+            request.side_effect = [self.response(301, '/moved.png'), final]
+            self.assertIs(safe_remote_request('GET', 'https://example.com/image.png'), final)
+            self.assertEqual(request.call_args[0][1], 'https://example.com/moved.png')
+
+    def test_limits_redirects(self):
+        from unittest.mock import patch
+        from app.api.helpers.utilities import safe_remote_request
+
+        with patch('app.api.helpers.utilities.validate_remote_url'), \
+                patch('app.api.helpers.utilities.requests.request') as request:
+            request.return_value = self.response(302, 'https://example.com/loop')
+            with self.assertRaises(ValueError):
+                safe_remote_request('GET', 'https://example.com/loop', max_redirects=3)
+            self.assertEqual(request.call_count, 4)
+
+
 if __name__ == '__main__':
     unittest.main()

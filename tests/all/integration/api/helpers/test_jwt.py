@@ -43,10 +43,10 @@ class TestJWTHelperValidation(OpenEventTestCase):
             save_to_db(event)
 
             # Authenticate User
-            self.auth = {'Authorization': "JWT " + create_access_token(user.id, fresh=True)}
+            self.auth = {'Authorization': "JWT " + create_access_token(str(user.id), fresh=True)}
 
         with app.test_request_context(headers=self.auth):
-            self.assertEquals(get_identity().id, user.id)
+            self.assertEqual(get_identity().id, user.id)
 
 
 if __name__ == '__main__':
