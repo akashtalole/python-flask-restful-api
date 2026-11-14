@@ -161,10 +161,10 @@ brew install redis
 # Run Celery
 # socketio has problems with celery "blocking" tasks
 # also socketio is not used in a celery task so no problem to turn it off
-INTEGRATE_SOCKETIO=false celery worker -A app.celery
+INTEGRATE_SOCKETIO=false celery -A app.celery worker
 
 # run app
-python3 manage.py runserver
+python3 manage.py run
 ```
 
 * **Step 7** - Rejoice. Go to `localhost:5000` in your web browser to see the application live.
@@ -180,7 +180,7 @@ export INTEGRATE_SOCKETIO="true"
 
 The development server is the one that Flask ships with. It's based on Werkzeug and does not support WebSockets. If you try to run it, you'll get a RunTime error, something like: `You need to use the eventlet server. `.  To test real-time notifications, you must use the Gunicorn web server with eventlet worker class.
 
-If you've installed development requirements, you should have both `gunicorn` and `eventlet` installed. To run application on port 5000, execute the following instead of `python3 manage.py runserver`:
+If you've installed development requirements, you should have `gunicorn` installed. To run application on port 5000, execute the following instead of `python3 manage.py run`:
 
 ```bash
 gunicorn app:app --worker-class eventlet -w 1 --bind 0.0.0.0:5000 --reload

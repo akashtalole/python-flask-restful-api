@@ -20,5 +20,5 @@ if [ "$DEPLOYMENT" == "celery" ]
 then
     echo "[LOG] Starting celery worker"
     export INTEGRATE_SOCKETIO=false
-    celery worker -A app.celery --loglevel=warning
+    celery -A app.celery worker --loglevel=warning
 fi

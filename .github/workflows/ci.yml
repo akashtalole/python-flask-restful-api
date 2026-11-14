@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    # weekly, so newly published advisories are caught even without code changes
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+    env:
+      APP_CONFIG: config.TestingConfig
+      DATABASE_URL: postgresql://postgres@localhost:5432/test
+      TEST_DATABASE_URL: postgresql://postgres@localhost:5432/test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - run: sudo apt-get update && sudo apt-get install -y libmagic1
+      - run: pip install -r requirements/tests.txt
+      - run: pytest tests/all -v --cov=app
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pip-audit bandit
+      - name: Known vulnerabilities in dependencies
+        run: |
+          pip install -r requirements/tests.txt
+          pip freeze --exclude-editable > /tmp/installed.txt
+          pip-audit -r /tmp/installed.txt --no-deps --disable-pip
+      - name: Static analysis
+        run: bandit -r app utils flask_rest_jsonapi config.py manage.py -ll

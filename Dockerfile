@@ -1,39 +1,44 @@
-FROM python:3.6-alpine as base
+FROM python:3.12-slim AS base
 LABEL maintainer="Akash Talole <taloleakash@gmail.com>"
 
-##
-##
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-FROM base as builder
+##
+## Builder: installs the Python dependencies into /install
+##
+FROM base AS builder
 
 WORKDIR /install
 
-RUN apk update && \
-  apk add --virtual build-deps git gcc python3-dev musl-dev jpeg-dev zlib-dev libevent-dev file-dev libffi-dev openssl && \
-  apk add postgresql-dev && \
-  pip install setuptools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential libpq-dev libffi-dev libjpeg-dev zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-ADD requirements.txt /requirements.txt
-ADD requirements /requirements/
+COPY requirements.txt /requirements.txt
+COPY requirements /requirements/
 
-RUN wget https://bootstrap.pypa.io/ez_setup.py && python ez_setup.py
-
-ENV PYTHONPATH /install/lib/python3.6/site-packages
-RUN pip install --install-option="--prefix=/install" setuptools && \
-    LIBRARY_PATH=/lib:/usr/lib pip install --install-option="--prefix=/install" -r /requirements.txt
-
+RUN pip install --prefix=/install -r /requirements.txt
 
 ##
+## Final image
 ##
-
 FROM base
 
+# libmagic is needed by python-magic, libpq by psycopg2, the rest by Pillow / xhtml2pdf
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libmagic1 libpq5 libjpeg62-turbo zlib1g ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --create-home --uid 10001 appuser
+
 COPY --from=builder /install /usr/local
-RUN apk --no-cache add postgresql-dev ca-certificates libxslt jpeg zlib file libxml2 git && \
-    pip install git+https://github.com/fossasia/flask-rest-jsonapi.git@shubhamp-master#egg=flask-rest-jsonapi
 
 WORKDIR /data/app
-ADD . .
+COPY --chown=appuser:appuser . .
+
+USER appuser
 
 EXPOSE 8080
 CMD ["sh", "scripts/container_start.sh"]

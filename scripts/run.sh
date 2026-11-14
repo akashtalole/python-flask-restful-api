@@ -15,6 +15,6 @@ fi
 
 redis-3.2.1/src/redis-server &
 # run worker
-celery worker -A app.celery &
+celery -A app.celery worker &
 # run app
-python3 manage.py runserver -h 0.0.0.0 -p 5000
+python3 manage.py run -h 0.0.0.0 -p 5000

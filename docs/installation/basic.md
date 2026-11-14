@@ -2,7 +2,7 @@
 
 ## Dependencies required to run Orga Server
 
-* Python 3
+* Python 3.12 or newer
 * Postgres
 ```sh
 sudo apt-get update
@@ -80,11 +80,11 @@ redis-3.2.1/src/redis-server &
 export INTEGRATE_SOCKETIO=false
 # socketio has problems with celery "blocking" tasks
 # also socketio is not used in a celery task so no problem to turn it off
-celery worker -A app.celery &
+celery -A app.celery worker &
 unset INTEGRATE_SOCKETIO
 
 # run app
-python3 manage.py runserver
+python3 manage.py run
 ```
 
 * **Step 7** - Rejoice. Go to `localhost:5000` in your web browser to see the application live.

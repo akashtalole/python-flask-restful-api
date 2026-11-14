@@ -138,7 +138,7 @@ to double check your database configuration.
 
 
 * Next, type
-```python3 manage.py runserver -h 0.0.0.0 -p 5000```
+```python3 manage.py run -h 0.0.0.0 -p 5000```
 
 ![screen shot 2015-12-13 at 7 22 55 pm](https://cloud.githubusercontent.com/assets/9834624/11853343/5e9cab7c-a40b-11e5-96ad-30df2a3e33a0.png)
 
